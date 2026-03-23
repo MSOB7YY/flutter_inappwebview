@@ -17,6 +17,95 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # nlohmann/json version for JSON parsing
 set(NLOHMANN_JSON_VERSION "3.11.3")
 
+set(WPE_BUNDLE_ENABLED ON)
+if(DISABLE_WPE_WEBKIT OR (DEFINED ENV{DISABLE_WPE_WEBKIT} AND "$ENV{DISABLE_WPE_WEBKIT}" STREQUAL "1"))
+  set(WPE_BUNDLE_ENABLED OFF)
+endif()
+
+
+# Plugin source files
+list(APPEND PLUGIN_SOURCES
+  "flutter_inappwebview_linux_plugin.cc"
+  "plugin_instance.cc"
+  "cookie_manager.cc"
+  "credential_database.cc"
+  "proxy_manager.cc"
+  "utils/software_rendering.cc"
+  "web_storage_manager.cc"
+  "webview_environment.cc"
+  "content_blocker/content_blocker_handler.cc"
+  "find_interaction/find_interaction_controller.cc"
+  "find_interaction/find_interaction_channel_delegate.cc"
+  "headless_in_app_webview/headless_in_app_webview.cc"
+  "headless_in_app_webview/headless_in_app_webview_manager.cc"
+  "headless_in_app_webview/headless_webview_channel_delegate.cc"
+  "in_app_browser/in_app_browser.cc"
+  "in_app_browser/in_app_browser_channel_delegate.cc"
+  "in_app_browser/in_app_browser_manager.cc"
+  "in_app_browser/in_app_browser_settings.cc"
+  "in_app_webview/in_app_webview_manager.cc"
+  "in_app_webview/custom_platform_view.cc"
+  "in_app_webview/inappwebview_texture.cc"
+  "in_app_webview/inappwebview_egl_texture.cc"
+  "in_app_webview/in_app_webview.cc"
+  "in_app_webview/in_app_webview_settings.cc"
+  "in_app_webview/user_content_controller.cc"
+  "in_app_webview/webview_channel_delegate.cc"
+  "types/channel_delegate.cc"
+  "types/client_cert_challenge.cc"
+  "types/client_cert_response.cc"
+  "types/content_world.cc"
+  "types/context_menu_popup.cc"
+  "types/create_window_action.cc"
+  "types/custom_scheme_response.cc"
+  "types/download_start_request.cc"
+  "types/download_start_response.cc"
+  "types/find_session.cc"
+  "types/http_auth_response.cc"
+  "types/http_authentication_challenge.cc"
+  "types/javascript_handler_function_data.cc"
+  "types/js_alert_request.cc"
+  "types/js_alert_response.cc"
+  "types/js_before_unload_response.cc"
+  "types/js_confirm_request.cc"
+  "types/js_confirm_response.cc"
+  "types/js_prompt_request.cc"
+  "types/js_prompt_response.cc"
+  "types/hit_test_result.cc"
+  "types/navigation_action.cc"
+  "types/option_menu_popup.cc"
+  "types/permission_request.cc"
+  "types/permission_response.cc"
+  "types/plugin_script.cc"
+  "types/server_trust_auth_response.cc"
+  "types/server_trust_challenge.cc"
+  "types/show_file_chooser_response.cc"
+  "types/ssl_certificate.cc"
+  "types/url_credential.cc"
+  "types/url_protection_space.cc"
+  "types/url_request.cc"
+  "types/user_script.cc"
+  "types/web_resource_error.cc"
+  "types/web_resource_request.cc"
+  "types/web_resource_response.cc"
+  "types/web_view_transport.cc"
+  "web_message/web_message_channel.cc"
+  "web_message/web_message_listener.cc"
+  "web_message/web_message_listener_channel_delegate.cc"
+)
+
+if(NOT WPE_BUNDLE_ENABLED)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/stub.cc" "
+    extern \"C\" __attribute__((visibility(\"default\")))
+    void flutter_inappwebview_linux_plugin_register_with_registrar(void* registrar) {}
+  ")
+  add_library(${PLUGIN_NAME} SHARED "${CMAKE_CURRENT_BINARY_DIR}/stub.cc")
+  target_compile_options(${PLUGIN_NAME} PRIVATE -fvisibility=default)
+  target_include_directories(${PLUGIN_NAME} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  set(flutter_inappwebview_linux_bundled_libraries "" PARENT_SCOPE)
+  return()
+endif()
+
 # === WPE WebKit Backend ===
 # This plugin uses WPE WebKit for offscreen web rendering.
 # WPE WebKit is designed for embedded systems and provides excellent offscreen
@@ -166,77 +255,6 @@ FetchContent_MakeAvailable(nlohmann_json)
 # Suppress deprecated literal operator warnings from nlohmann_json
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-literal-operator")
 message(STATUS "flutter_inappwebview_linux: nlohmann/json ${NLOHMANN_JSON_VERSION} configured")
-
-# Plugin source files
-list(APPEND PLUGIN_SOURCES
-  "flutter_inappwebview_linux_plugin.cc"
-  "plugin_instance.cc"
-  "cookie_manager.cc"
-  "credential_database.cc"
-  "proxy_manager.cc"
-  "utils/software_rendering.cc"
-  "web_storage_manager.cc"
-  "webview_environment.cc"
-  "content_blocker/content_blocker_handler.cc"
-  "find_interaction/find_interaction_controller.cc"
-  "find_interaction/find_interaction_channel_delegate.cc"
-  "headless_in_app_webview/headless_in_app_webview.cc"
-  "headless_in_app_webview/headless_in_app_webview_manager.cc"
-  "headless_in_app_webview/headless_webview_channel_delegate.cc"
-  "in_app_browser/in_app_browser.cc"
-  "in_app_browser/in_app_browser_channel_delegate.cc"
-  "in_app_browser/in_app_browser_manager.cc"
-  "in_app_browser/in_app_browser_settings.cc"
-  "in_app_webview/in_app_webview_manager.cc"
-  "in_app_webview/custom_platform_view.cc"
-  "in_app_webview/inappwebview_texture.cc"
-  "in_app_webview/inappwebview_egl_texture.cc"
-  "in_app_webview/in_app_webview.cc"
-  "in_app_webview/in_app_webview_settings.cc"
-  "in_app_webview/user_content_controller.cc"
-  "in_app_webview/webview_channel_delegate.cc"
-  "types/channel_delegate.cc"
-  "types/client_cert_challenge.cc"
-  "types/client_cert_response.cc"
-  "types/content_world.cc"
-  "types/context_menu_popup.cc"
-  "types/create_window_action.cc"
-  "types/custom_scheme_response.cc"
-  "types/download_start_request.cc"
-  "types/download_start_response.cc"
-  "types/find_session.cc"
-  "types/http_auth_response.cc"
-  "types/http_authentication_challenge.cc"
-  "types/javascript_handler_function_data.cc"
-  "types/js_alert_request.cc"
-  "types/js_alert_response.cc"
-  "types/js_before_unload_response.cc"
-  "types/js_confirm_request.cc"
-  "types/js_confirm_response.cc"
-  "types/js_prompt_request.cc"
-  "types/js_prompt_response.cc"
-  "types/hit_test_result.cc"
-  "types/navigation_action.cc"
-  "types/option_menu_popup.cc"
-  "types/permission_request.cc"
-  "types/permission_response.cc"
-  "types/plugin_script.cc"
-  "types/server_trust_auth_response.cc"
-  "types/server_trust_challenge.cc"
-  "types/show_file_chooser_response.cc"
-  "types/ssl_certificate.cc"
-  "types/url_credential.cc"
-  "types/url_protection_space.cc"
-  "types/url_request.cc"
-  "types/user_script.cc"
-  "types/web_resource_error.cc"
-  "types/web_resource_request.cc"
-  "types/web_resource_response.cc"
-  "types/web_view_transport.cc"
-  "web_message/web_message_channel.cc"
-  "web_message/web_message_listener.cc"
-  "web_message/web_message_listener_channel_delegate.cc"
-)
 
 # Define the plugin library target. Its name must not be changed (see comment
 # on PLUGIN_NAME above).
