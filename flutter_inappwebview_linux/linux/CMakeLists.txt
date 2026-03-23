@@ -375,6 +375,15 @@ if(HAVE_WPE_FDO)
   find_and_add_library("libWPEBackend-fdo-1.0" "${WPE_LIB_DIRS}" WPE_BUNDLED_LIBS)
 endif()
 
+# Bundle WPEWebKit subprocess binaries
+file(GLOB_RECURSE WPE_EXEC_FILES "/usr/lib/wpe-webkit-2.0/*")
+foreach(WPE_FILE ${WPE_EXEC_FILES})
+  if(NOT IS_SYMLINK "${WPE_FILE}")
+    list(APPEND WPE_BUNDLED_LIBS "${WPE_FILE}")
+    message(STATUS "flutter_inappwebview_linux: Will bundle ${WPE_FILE}")
+  endif()
+endforeach()
+
 # Also need to create symlinks for the sonames that the libraries expect
 # This will be handled at install time in the example CMakeLists.txt
 
@@ -385,6 +394,65 @@ set(flutter_inappwebview_linux_bundled_libraries
 
 # Export library info for downstream use
 set(FLUTTER_INAPPWEBVIEW_WPE_LIBS ${WPE_BUNDLED_LIBS} CACHE INTERNAL "WPE libraries to bundle")
+
+
+# === WPE Library Symlink Creation ===
+# Create the necessary soname symlinks so the WPE libraries can find each other at runtime
+install(CODE "
+  # Create symlinks for WPE libraries in the lib directory
+  set(LIB_DIR \"\${CMAKE_INSTALL_PREFIX}/lib\")
+    
+    # Function to create soname symlinks for a library
+    macro(create_lib_symlinks LIB_PATTERN SONAME_BASE)
+      file(GLOB LIB_FILES \"\${LIB_DIR}/\${LIB_PATTERN}\")
+      if(LIB_FILES)
+        list(GET LIB_FILES 0 REAL_LIB)
+        get_filename_component(REAL_LIB_NAME \"\${REAL_LIB}\" NAME)
+        
+        # Create .so.X symlink (e.g., libwpe-1.0.so.1 -> libwpe-1.0.so.1.10.0)
+        set(SONAME_LINK \"\${LIB_DIR}/\${SONAME_BASE}.so.1\")
+        if(NOT EXISTS \"\${SONAME_LINK}\")
+          execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink
+            \"\${REAL_LIB_NAME}\" \"\${SONAME_LINK}\")
+          message(STATUS \"Created symlink: \${SONAME_LINK} -> \${REAL_LIB_NAME}\")
+        endif()
+        
+        # Create .so symlink (e.g., libwpe-1.0.so -> libwpe-1.0.so.1)
+        set(SO_LINK \"\${LIB_DIR}/\${SONAME_BASE}.so\")
+        if(NOT EXISTS \"\${SO_LINK}\")
+          execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink
+            \"\${SONAME_BASE}.so.1\" \"\${SO_LINK}\")
+          message(STATUS \"Created symlink: \${SO_LINK} -> \${SONAME_BASE}.so.1\")
+        endif()
+      endif()
+    endmacro()
+    
+    # Create symlinks for each WPE library
+    create_lib_symlinks(\"libWPEWebKit-2.0.so.*.*.*\" \"libWPEWebKit-2.0\")
+    create_lib_symlinks(\"libwpe-1.0.so.*.*.*\" \"libwpe-1.0\")
+    create_lib_symlinks(\"libWPEBackend-fdo-1.0.so.*.*.*\" \"libWPEBackend-fdo-1.0\")
+    
+    # Create the default backend symlink that WPE expects
+    set(DEFAULT_BACKEND_LINK \"\${LIB_DIR}/libWPEBackend-default.so\")
+    if(NOT EXISTS \"\${DEFAULT_BACKEND_LINK}\")
+      execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink
+        \"libWPEBackend-fdo-1.0.so.1\" \"\${DEFAULT_BACKEND_LINK}\")
+      message(STATUS \"Created symlink: \${DEFAULT_BACKEND_LINK} -> libWPEBackend-fdo-1.0.so.1\")
+    endif()
+  " COMPONENT Runtime)
+
+# === Try fixing rpath in so ===
+install(CODE "
+  file(GLOB_RECURSE ALL_BUNDLED \"\${CMAKE_INSTALL_PREFIX}/lib/*\")
+  foreach(F \${ALL_BUNDLED})
+    if(NOT IS_SYMLINK \"\${F}\")
+      execute_process(COMMAND patchelf --set-rpath \"\$ORIGIN\"
+        \"\${F}\"
+        ERROR_QUIET)
+    endif()
+  endforeach()
+  message(STATUS \"Patched RPATH for all bundled files\")
+")
 
 # === Tests ===
 # These unit tests can be run from a terminal after building the example.
