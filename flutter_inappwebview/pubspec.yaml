@@ -36,7 +36,7 @@ dependencies:
   flutter_inappwebview_linux:
     git:
       url: https://github.com/MSOB7YY/flutter_inappwebview
-      path: /flutter_inappwebview_linux
+      path: flutter_inappwebview_linux
 
 dev_dependencies:
   flutter_test:
